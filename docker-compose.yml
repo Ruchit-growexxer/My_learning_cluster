@@ -1,0 +1,68 @@
+version: '3.8'
+
+services:
+  node01:
+    container_name: node01
+    mem_limit: 2g
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.3.3
+    build:
+      context: elasticsearch/
+      # args:
+      #   STACK_VERSION: ${STACK_VERSION}
+    ports:
+      - '$ES_PORT:9200'
+    environment:
+      - cluster.name=${CLUSTER_NAME}
+      - node.name=node01
+      - discovery.seed_hosts=node01
+      - "ES_JAVA_OPTS=-Xms750m -Xmx750m"
+    ulimits: 
+      memlock:
+        soft: -1
+        hard: -1
+    volumes:
+      - ./elasticsearch/config/elasticsearch.yml:/usr/share/elasticsearch/config/elasticsearch.yml:ro,z
+      - ./elasticsearch/data01:/usr/share/elasticsearch/data
+    #networks:
+     # - elastic
+
+  kibana:
+   container_name: kibana
+   image: kibana:8.1.1
+   build:
+     context: kibana/
+     # args:
+     #   STACK_VERSION: ${STACK_VERSION}
+   volumes:
+     - ./kibana/config/kibana.yml:/usr/share/kibana/config/kibana.yml:ro,Z
+   ports:
+     - '$KIBANA_PORT:5601'
+   environment:
+    ELASTICSEARCH_URL: http://node01:$ES_PORT
+    ELASTICSEARCH_HOSTS: '["http://node01:$ES_PORT"]'
+   depends_on:
+     - node01
+   #networks:
+    #  - elastic
+
+  metricbeat:
+   container_name: metricbeat
+   image: docker.elastic.co/beats/metricbeat:8.3.3
+   build:
+     context: metricbeat/
+     args:
+      STACK_VERSION: ${STACK_VERSION}
+      #strict.perms: false
+   environment:
+     ELASTICSEARCH_HOSTS: http://node01:$ES_PORT
+      
+   volumes:
+     - ./metricbeat/metricbeat-data:/usr/share/metricbeat/data
+   depends_on:
+     - node01
+     - kibana
+   #networks:
+    #  - elastic
+   command:
+     - -e
+     - --strict.perms=false

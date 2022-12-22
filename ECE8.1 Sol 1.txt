@@ -1,0 +1,2364 @@
+# Data Management
+
+DELETE index
+#----------------------------------------------------------
+PUT index
+{
+  "aliases": {
+    "iamthealias": {}
+  },
+  "mappings": {},
+  "settings": {}
+}
+ 
+GET index
+GET iamthealias
+GET index/_search
+GET iamthealias/_search
+
+#--------------------------------------------------------------
+
+	
+DELETE index2
+PUT index2
+{
+  "aliases": {
+    "iamanalias": {}
+  },
+  "mappings": {
+    "properties": {
+      "age": {
+        "type": "integer"
+      },
+      "email": {
+        "type": "keyword"
+      },
+      "name": {
+        "type": "text"
+      }
+    }
+  },
+  "settings": {
+    "number_of_shards": 1,
+    "number_of_replicas": 0
+  }
+}
+ 
+GET index2
+GET iamanalias
+
+POST index2/_doc
+{
+  "age": 30,
+  "email": "elasticsearch@kibana.com",
+  "name": "Elasticsearch"
+}
+POST iamanalias/_doc
+{
+  "age": 30,
+  "email": "elasticsearch@kibana.com",
+  "name": "Elasticsearch"
+}
+GET index2/_search
+
+#---------------------------------------------------------------
+			index template
+#---------------------------------------------------------------	
+PUT _index_template/students-template
+{
+  "index_patterns": [
+    "students-*"
+  ],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    }
+  }
+}
+
+GET _index_template/students-template
+PUT students-2022
+
+	
+GET students-2022
+
+GET _cat/indices?v
+DELETE students-2022
+DELETE _index_template/students-template
+
+PUT _component_template/mysettings
+{
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    }
+  }
+}
+GET _component_template/mysettings
+
+	
+PUT _index_template/students-template
+{
+  "index_patterns": [
+    "students-*"
+  ],
+  "composed_of": [
+    "mysettings"
+  ]
+}
+GET _index_template/students-template
+PUT students-2022
+GET students-2022
+
+	
+PUT students-2022/_doc/1
+{
+  "student-id": "1001",
+  "name": "John Smith",
+  "course": "Elastic Certified Engineer"
+}
+
+GET students-2022/_doc/1
+# Cleanup if you wish to
+DELETE students-2022
+DELETE _index_template/students-template
+DELETE _component_template/mysettings
+
+#---------------------------------------------------------
+		Dynamic template
+#---------------------------------------------------------
+
+	
+DELETE dynamic-template-demo
+ 
+PUT dynamic-template-demo
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "strings_as_ip": {
+          "match_mapping_type": "string",
+          "match": "ip-*",
+          "runtime": {
+            "type": "ip"
+          }
+        }
+      },
+      {
+        "convert-id-to-keywords-always": {
+          "match_mapping_type": "string",
+          "match": "*-id",
+          "mapping": {
+            "type": "keyword"
+          }
+        }
+      }
+    ]
+  }
+}
+
+	
+POST dynamic-template-demo/_doc
+{
+  "log": "log from server 1",
+  "ip-address": "10.10.10.10",
+  "order-id": "abc123",
+  "transaction-id": "xyz789"
+}
+ 
+POST dynamic-template-demo/_doc
+{
+  "log": "log from server 1",
+  "ip-address": "This will fail while searching",
+  "order-id": "abc456",
+  "transaction-id": "xyz101"
+}
+ 
+GET dynamic-template-demo/_mapping
+ 
+GET dynamic-template-demo/_search
+
+	
+GET dynamic-template-demo/_search
+{
+  "query": {
+    "term": {
+      "ip-address": {
+        "value": "10.10.10.10"
+      }
+    }
+  }
+}
+ 
+GET dynamic-template-demo/_search
+{
+  "query": {
+    "term": {
+      "ip-address": {
+        "value": "This will fail while searching"
+      }
+    }
+  }
+}
+
+# BELOW WILL PASS BECAUSE `order-id` IS KEYWORD
+GET dynamic-template-demo/_search
+{
+  "query": {
+    "term": {
+      "order-id": {
+        "value": "abc123"
+      }
+    }
+  }
+}
+ 
+# BELOW WILL FAIL BECAUSE `order-id` IS KEYWORD AND NOT TEXT
+GET dynamic-template-demo/_search
+{
+  "query": {
+    "match": {
+      "order-id": {
+        "query": "abc12"
+      }
+    }
+  }
+}
+
+	
+DELETE dynamic-template-demo-2
+ 
+PUT dynamic-template-demo-2
+{
+  "mappings": {
+    "dynamic_templates": [
+      {
+        "strings_as_ip": {
+          "match_mapping_type": "string",
+          "match": "ip-*",
+          "mapping": {
+            "type": "ip"
+          }
+        }
+      }
+    ]
+  }
+}
+
+	
+POST dynamic-template-demo-2/_doc
+{
+  "log": "log from server 1",
+  "ip-address": "10.10.10.10"
+}
+ 
+POST dynamic-template-demo-2/_doc
+{
+  "log": "log from server 1",
+  "ip-address": "This will fail during storage"
+}
+
+
+#-------------------------------------------------------
+		Index lifecycle management policy
+#-------------------------------------------------------
+
+	
+GET _ilm/policy/ILM-Policy-For-Data-Stream
+PUT _ilm/policy/ILM-Policy-For-Data-Stream-2
+{
+  "policy": {
+    "phases" : {
+        "hot" : {
+          "min_age" : "0ms",
+          "actions" : {
+            "set_priority" : {
+              "priority" : 100
+            },
+            "rollover" : {
+              "max_primary_shard_size" : "50gb",
+              "max_age" : "30d"
+            }
+          }
+        },
+      "warm" : {
+          "min_age" : "60d",
+          "actions" : {
+            "set_priority" : {
+              "priority" : 50
+            }
+          }
+        },
+        "cold" : {
+          "min_age" : "90d",
+          "actions" : {
+            "set_priority" : {
+              "priority" : 0
+            }
+          }
+        },
+        "frozen" : {
+          "min_age" : "120d",
+          "actions" : {
+            "searchable_snapshot" : {
+              "snapshot_repository" : "mysnapshotrepository",
+              "force_merge_index" : true
+            }
+          }
+        }
+      }
+  }
+}
+GET _ilm/policy/ILM-Policy-For-Data-Stream-2
+
+PUT _index_template/index-template-for-data-stream
+{
+  "index_patterns": ["timeseries"],                   
+  "data_stream": { },
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.lifecycle.name": "ILM-Policy-For-Data-Stream-2"     
+    }
+  }
+}
+GET _index_template/index-template-for-data-stream
+
+POST timeseries/_doc
+{
+  "message": "logged the request",
+  "@timestamp": "1591890611"
+}
+ 
+GET timeseries
+GET timeseries/_search
+ 
+GET .ds-timeseries-*/_ilm/explain
+
+#---------------------------------------------------------
+	Index template that create new data stream
+#---------------------------------------------------------
+
+PUT _component_template/mysettings
+{
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0
+    }
+  }
+}
+COPY
+GET _component_template/mysettings
+
+PUT _ilm/policy/logs
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {}
+      },
+      "warm": {
+        "min_age": "7d",
+        "actions": {
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "30d",
+        "actions": {
+          "freeze": {}
+        }
+      },
+      "delete": {
+        "min_age": "90d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+	
+GET _ilm/policy/logs
+COPY
+PUT _index_template/logs
+{
+  "index_patterns": [
+    "logs-*"
+  ],
+  "composed_of": [
+    "mysettings"
+  ],
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "logs"
+    }
+  }
+}
+GET _index_template/logs
+
+
+PUT logs-1
+GET logs-1
+# CLEANUP
+DELETE logs-1
+DELETE _index_template/logs
+DELETE _component_template/mysettings
+DELETE _ilm/policy/logs
+
+GET _ilm/policy/logs
+PUT _index_template/logs
+{
+  "index_patterns": [
+    "logs-*"
+  ],
+  "composed_of": [
+    "mysettings"
+  ],
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "logs"
+    }
+  }
+}
+GET _index_template/logs
+PUT logs-1
+GET logs-1
+# CLEANUP
+DELETE logs-1
+DELETE _index_template/logs
+DELETE _component_template/mysettings
+DELETE _ilm/policy/logs
+PUT _ilm/policy/logs-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "10gb"
+          },
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "30d",
+        "actions": {
+          "freeze": {}
+        }
+      },
+      "delete": {
+        "min_age": "90d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+PUT logs-1
+GET logs-1
+# CLEANUP
+DELETE logs-1
+DELETE _index_template/logs
+DELETE _component_template/mysettings
+DELETE _ilm/policy/logs
+PUT _ilm/policy/logs-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "actions": {
+          "rollover": {
+            "max_primary_shard_size": "10gb"
+          },
+          "forcemerge": {
+            "max_num_segments": 1
+          }
+        }
+      },
+      "cold": {
+        "min_age": "30d",
+        "actions": {
+          "freeze": {}
+        }
+      },
+      "delete": {
+        "min_age": "90d",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+GET _ilm/policy/logs-policy
+PUT _component_template/logs-component-template
+{
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.lifecycle.name": "logs-policy"
+    }
+  }
+}
+COPY
+GET _component_template/logs-component-template
+
+PUT _index_template/logs-index-template
+{
+  "index_patterns": [
+    "logs-stream*"
+  ],
+  "data_stream": {},
+  "composed_of": [
+    "logs-component-template"
+  ]
+}
+COPY
+GET _index_template/logs-index-template
+PUT _data_stream/logs-stream
+GET _data_stream/logs-stream
+
+# CLEANUP
+DELETE _data_stream/logs-stream
+DELETE _index_template/logs-index-template
+DELETE _component_template/logs-component-template
+DELETE _ilm/policy/logs-policy
+
+#---------------------------------------------------------
+		Scenario based questions
+#---------------------------------------------------------
+
+Create an Index Lifecycle Management Policy
+that will keep the data `hot` for first 5 minutes
+Rollsover the after 5 minutes to `warm` Phase
+Data Stays in warm phase for 3 minutes from rollover
+Data Stays in `cold` phase for 6 minutes from rollover
+Finally Delete the Data in delete phase
+
+Create a component template named `logs-component-template`
+that uses the `logs-index-lifecycle-policy` ILM Policy
+
+Create an Index Template named `logs-index-template`
+that looks for pattern `logs-*-*`
+meant for Data Stream
+
+Finally start the data stream by sending below data
+POST logs-august-2022/_doc/
+{
+  "@timestamp": "2022-08-22T11:06:07.000Z", 
+  "message": "Login successful"
+}
+
+
+Elasticsearch - Scenario Based  Question - Data Streams, ILM, Component Template, Index Template
+Create an Index Lifecycle Management Policy
+that will keep the data `hot` for first 5 minutes
+Rollsover the after 5 minutes to `warm` Phase
+Data Stays in warm phase for 3 minutes from rollover
+Data Stays in `cold` phase for 6 minutes from rollover
+Finally Delete the Data in delete phase
+
+Create a component template named `logs-component-template`
+that uses the `logs-index-lifecycle-policy` ILM Policy
+
+Create an Index Template named `logs-index-template`
+that looks for pattern `logs-*-*`
+meant for Data Stream
+
+Finally start the data stream by sending below data
+POST logs-august-2022/_doc/
+{
+  "@timestamp": "2022-08-22T11:06:07.000Z", 
+  "message": "Login successful"
+}
+
+Task
+PUT _ilm/policy/logs-index-lifecycle-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "min_age": "0ms",
+        "actions": {
+          "rollover": {
+            "max_age": "5m"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "5m",
+        "actions": {}
+      },
+      "cold": {
+        "min_age": "8m",
+        "actions": {}
+      },
+      "delete": {
+        "min_age": "14m",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+
+Create an Index Lifecycle Management Policy
+that will keep the data `hot` for first 5 minutes
+Rollsover the after 5 minutes to `warm` Phase
+Data Stays in warm phase for 3 minutes from rollover
+Data Stays in `cold` phase for 6 minutes from rollover
+Finally Delete the Data in delete phase
+
+Create a component template named `logs-component-template`
+that uses the `logs-index-lifecycle-policy` ILM Policy
+
+Create an Index Template named `logs-index-template`
+that looks for pattern `logs-*-*`
+meant for Data Stream
+
+Finally start the data stream by sending below data
+POST logs-august-2022/_doc/
+{
+  "@timestamp": "2022-08-22T11:06:07.000Z", 
+  "message": "Login successful"
+}
+
+Task
+PUT _ilm/policy/logs-index-lifecycle-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "min_age": "0ms",
+        "actions": {
+          "rollover": {
+            "max_age": "5m"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "5m",
+        "actions": {}
+      },
+      "cold": {
+        "min_age": "8m",
+        "actions": {}
+      },
+      "delete": {
+        "min_age": "14m",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+Solution
+# Create a component template named `logs-component-template`
+# that uses the `logs-index-lifecycle-policy` ILM Policy
+
+PUT _component_template/logs-component-template
+{
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "logs-index-lifecycle-policy"
+    }
+  }
+}
+
+PUT _ilm/policy/logs-index-lifecycle-policy
+{
+  "policy": {
+    "phases": {
+      "hot": {
+        "min_age": "0ms",
+        "actions": {
+          "rollover": {
+            "max_age": "5m"
+          }
+        }
+      },
+      "warm": {
+        "min_age": "5m",
+        "actions": {}
+      },
+      "cold": {
+        "min_age": "8m",
+        "actions": {}
+      },
+      "delete": {
+        "min_age": "14m",
+        "actions": {
+          "delete": {}
+        }
+      }
+    }
+  }
+}
+Solution
+# Create a component template named `logs-component-template`
+# that uses the `logs-index-lifecycle-policy` ILM Policy
+
+PUT _component_template/logs-component-template
+{
+  "template": {
+    "settings": {
+      "index.lifecycle.name": "logs-index-lifecycle-policy"
+    }
+  }
+}
+Solution
+# Create an Index Template named `logs-index-template`
+# that looks for pattern `logs-*-*`
+# meant for Data Stream
+
+PUT _index_template/logs-index-template
+{
+  "index_patterns": ["logs-*-*"],
+  "data_stream": { },
+  "composed_of": [ "logs-component-template" ]
+  
+}
+
+POST logs-august-2022/_doc/
+{
+  "@timestamp": "2022-08-22T11:06:07.000Z",
+  "message": "Login successful"
+}
+
+
+GET logs-august-2022/_search
+GET logs-*-*/_search
+
+#---------------------------------------------------------
+	Asynch search
+#---------------------------------------------------------
+
+POST kibana_sample_data_ecommerce/_search
+ 
+POST kibana_sample_data_ecommerce/_async_search
+ 
+POST kibana_sample_data_ecommerce/_async_search?wait_for_completion_timeout=0
+ 
+GET _async_search/status/<ID>
+ 
+GET _async_search/<ID>
+ 
+DELETE _async_search/<ID>
+ 
+GET _async_search/<ID>
+
+#---------------------------------------------------------
+Write and execute a query that searches across multiple clusters
+#---------------------------------------------------------
+
+# Configure a cluster for cross-cluster search
+PUT _cluster/settings
+{
+  "persistent": {
+    "cluster": {
+      "remote": {
+        "secondary_cluster": {
+          "seeds": ["localhost:9600"]
+        }
+      }
+    }
+  }
+}
+
+GET shakespeare/_search
+{
+  "query": {
+    "match": {
+      "text_entry": "king"
+    }
+  }
+}
+
+# Write and execute a query that searches across multiple clusters
+GET shakespeare,secondary_cluster:shakespeare/_search
+{
+  "query": {
+    "match": {
+      "text_entry": "king"
+    }
+  }
+}
+
+#----------------------------------------------------------
+Write and execute a search query for terms and or phrases in one or more fields
+#----------------------------------------------------------
+
+1. Simple Match Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "match": {
+      "customer_full_name": "jackson"
+    }
+  }
+}
+
+
+
+# Simple Match Query with and
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "match": {
+      "customer_full_name": {
+        "query": "jackson cook",
+        "operator": "and"
+      }
+    }
+  }
+}
+
+2. Match All Query
+# Match All Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "match_all": {}
+  }
+}
+
+
+3. Term Query
+# Term Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "term": {
+      "customer_full_name.keyword": "Jackson Cook"
+    }
+  }
+}
+
+4. Range Query - For Date
+# Range Query - For Date
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "range": {
+      "order_date": {
+        "gte": "2022-07-11",
+        "lte": "2022-08-11"
+      }
+    }
+  }
+}
+
+# Range Query - For Taxful Total Price
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "range": {
+      "taxful_total_price": {
+        "gte": 50,
+        "lte": 60
+      }
+    }
+  }
+}
+
+5. IDs Query
+# ID Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "ids": {
+      "values": [
+        "USMws4EBSPn6xDbSlSJX",
+        "UiMws4EBSPn6xDbSlSJX"
+      ]
+    }
+  }
+}
+COPY
+
+
+6. Multiple Terms Query
+# Multiple Term Query
+GET /_search
+{
+  "query": {
+    "terms": {
+      "customer_full_name.keyword": [
+        "Jackson Cook",
+        "Gwen Butler"
+      ]
+    }
+  }
+}
+
+
+7. Exists Query
+# Exist Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "exists": {
+      "field": "customer_phone"
+    }
+  }
+}
+
+# Exist Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "exists": {
+      "field": "customer_mobile"
+    }
+  }
+}
+
+18. Fuzzy Query
+# Fuzzy Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "fuzzy": {
+      "customer_first_name": {
+        "value": "jakcsan",
+        "fuzziness": "AUTO"
+      }
+    }
+  }
+}
+
+
+19. Filter Query
+# Filter Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "match": {
+            "customer_first_name": "jackson"
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "order_date": {
+              "gte": "2022-07-10"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+
+20. Named Query
+# Named Query
+GET /kibana_sample_data_ecommerce/_search
+{
+  "query": {
+    "bool": {
+      "should": [
+        {
+          "match": {
+            "customer_first_name": {
+              "query": "jackson",
+              "_name": "name is jackson"
+            }
+          }
+        },
+        {
+          "match": {
+            "customer_first_name": {
+              "query": "mary",
+              "_name": "name is mary"
+            }
+          }
+        }
+      ],
+      "filter": [
+        {
+          "range": {
+            "order_date": {
+              "gte": "2022-07-10",
+              "_name": "order_greater_than_2022-07-10"
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+#--------------------------------------------------------
+20. Write and execute a search that utilizes a runtime field
+#--------------------------------------------------------
+
+	
+GET movie_data/_search
+ 
+GET movie_data/_search
+{
+  "runtime_mappings": {
+    "profit": {
+      "type": "long",
+      "script": {
+        "source": "emit(doc['revenue'].value - doc['budget'].value)"
+      }
+    }
+  },
+  "fields": [
+    "profit"
+  ]
+}
+PUT movie_data/_mapping
+{
+  "runtime": {
+    "profitruntime": {
+      "type": "long",
+      "script": {
+        "source": "emit(doc['revenue'].value - doc['budget'].value)"
+      }
+    }
+  }
+}
+GET movie_data/_search
+{
+  "fields": [
+    "profitruntime"
+  ],
+  "query": {
+    "match_all": {}
+  }
+}
+
+#--------------------------------------------------------
+21. Write and execute aggregations that contain sub-aggregations
+#--------------------------------------------------------
+
+14. Sub Aggregations - Total Sales Per Order Date
+# Sub Aggregations - Total Sales Per Order Date
+GET /kibana_sample_data_ecommerce/_search
+{
+  "size": 0, 
+  "aggs": {
+    "total-sales-per-order_date": {
+      "date_histogram": {
+        "field": "order_date",
+        "interval": "day"
+      },
+      "aggs": {
+        "total-sales": {
+          "sum": {
+            "field": "taxful_total_price"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+15. Average Sales Per Order Date
+#Average Sales Per Order Date
+GET /kibana_sample_data_ecommerce/_search
+{
+  "size": 0, 
+  "aggs": {
+    "average-sales-per-order_date": {
+      "date_histogram": {
+        "field": "order_date",
+        "interval": "day"
+      },
+      "aggs": {
+        "avg-sales": {
+          "avg": {
+            "field": "taxful_total_price"
+          }
+        }
+      }
+    }
+  }
+}
+
+
+16. Total Sales per Month per Customer - 3 level
+# Total Sales per Month per Customer - 3 level
+GET /kibana_sample_data_ecommerce/_search
+{
+  "size": 0,
+  "aggs": {
+    "total-sales-per-order_date_month": {
+      "date_histogram": {
+        "field": "order_date",
+        "interval": "month"
+      },
+      "aggs": {
+        "emails-unique": {
+          "terms": {
+            "field": "email",
+            "size": 10
+          },
+          "aggs": {
+            "total-sales": {
+              "sum": {
+                "field": "taxful_total_price"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+#--------------------------------------------------------
+25. Scenario Based Question - Nested Aggregation - Async Search
+#--------------------------------------------------------
+Task
+Write an asyn search on
+kibana_sample_data_flights index
+
+1. Aggregate flights by week
+2. Find Average DistanceMiles by week
+3. Sort the Average DistanceMiles by week in descending order
+
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+POST kibana_sample_data_flights/_async_search
+{
+  "size": 0,
+  "aggs": {
+    "aggregate_by_week": {
+      "date_histogram": {
+        "field": "timestamp",
+        "calendar_interval": "week"
+      },
+      "aggs": {
+        "avg_aggregate_by_week": {
+          "avg": {
+            "field": "DistanceMiles"
+          }
+        },
+        "bucket_sort_order": {
+          "bucket_sort": {
+            "sort": {
+              "avg_aggregate_by_week": {
+                "order": "desc"
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
+
+#---------------------------------------------------------
+27. Question - Runtime Field Mapping and Range Aggregation
+#---------------------------------------------------------
+
+Given an index named "movie_data"
+Add a search runtime field called profit which will be
+profit = revenue - budget
+Create a Range Aggregation 
+1) profit 0 or less
+2) profit between 0 to 10,000,000 
+3) profit above 10 million
+Task
+GET movie_data/_search
+
+GET movie_data/_search
+{
+  "runtime_mappings": {
+    "profit": {
+      "type": "long",
+      "script": {
+        "source": "emit(doc['revenue'].value - doc['budget'].value)"
+      }
+    }
+  },
+  "size": 0, 
+  "aggs": {
+    "range_agg": {
+      "range": {
+        "field": "profit",
+        "ranges": [
+          {
+            "to": 0
+          },
+          {
+            "from": 0,
+            "to": 10000000
+          },
+          {
+            "from": 10000000
+          }
+        ]
+      }
+    }
+  }
+}
+
+#-------------------------------------------------------
+28. Scenario Based Question - Multi Match Query
+#-------------------------------------------------------
+
+- Write a single search query that must match for `star`
+  in fields `original_title`, `overview` and `tagline`
+- `original_title` should have a boost of 2
+- Also the `vote_average` must be more than 7.0
+Task
+GET movie_data/_search
+GET movie_data/_mapping
+
+
+GET movie_data/_search
+{
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "multi_match": {
+            "query": "star",
+            "fields": [
+              "original_title^2",
+              "overview",
+              "tagline"
+            ]
+          }
+        },
+        {
+          "range": {
+            "vote_average": {
+              "gte": 7.0
+            }
+          }
+        }
+      ]
+    }
+  }
+}
+
+#----------------------------------------------------------
+29. Define and use a search template
+#----------------------------------------------------------
+
+Render Template
+# Render Template - Test
+POST _render/template
+{
+  "id": "my-search-template",
+  "params": {
+    "from": "0",
+    "size": "20",
+    "customerFullName": "Mary"
+  }
+}
+
+
+Search Index
+# Final Querying the Index using the Search Template
+GET kibana_sample_data_ecommerce/_search/template
+{
+  "id": "my-search-template",
+  "params": {
+    "customerFullName": "Mary"
+  }
+}
+
+
+Search Index - 2
+# Final Querying the Index using the Search Template - 2
+GET kibana_sample_data_ecommerce/_search/template
+{
+  "id": "my-search-template",
+  "params": {
+    "customerFullName": "Mary",
+    "from": 20
+  }
+}
+
+
+#---------------------------------------------------------
+30. Define and use index aliases
+#---------------------------------------------------------
+
+Post Data - 2
+POST logs-jan/_doc
+{
+  "message": "server slow",
+  "severity": "warning"
+}
+
+
+Test Aliases
+# Actual Index
+GET logs-jan/_search
+GET logs-feb/_search
+
+# All Aliases below
+GET logs/_search
+GET logs-all/_search
+GET logs-error/_search
+GET logs-warning/_search
+
+
+Cleanup
+DELETE logs
+DELETE logs-error
+DELETE logs-warning
+DELETE logs-jan
+DELETE _index_template/logs_index_template
+DELETE _component_template/logs_component_template
+
+
+#---------------------------------------------------------
+31. Highlight the search terms in the response of a quer
+#---------------------------------------------------------
+
+10. Pagination - Page 2
+# Pagination - Page 2
+GET /kibana_sample_data_ecommerce/_search
+{
+  "from": 10,
+  "size": 10, 
+  "query": {
+    "match": {
+      "products.product_name": "boot"
+    }
+  },
+  "highlight": {
+    "pre_tags": "<b><i>",
+    "post_tags": "</b></i>",
+    "fields": {
+      "products.product_name": {}
+    }
+  },
+  "sort": [
+    {
+      "products.base_price": {
+        "order": "desc",
+        "mode": "avg"
+      }
+    }
+  ]
+}
+
+
+11. Pagination - Page 3
+# Pagination - Page 3
+GET /kibana_sample_data_ecommerce/_search
+{
+  "from": 20,
+  "size": 10, 
+  "query": {
+    "match": {
+      "products.product_name": "boot"
+    }
+  },
+  "highlight": {
+    "pre_tags": "<b><i>",
+    "post_tags": "</b></i>",
+    "fields": {
+      "products.product_name": {}
+    }
+  },
+  "sort": [
+    {
+      "products.base_price": {
+        "order": "desc",
+        "mode": "avg"
+      }
+    }
+  ]
+}
+
+
+12. Pagination Formula
+Page 1
+size = 10
+from = ( 1 - 1 ) * size = 0
+
+Page 2
+size = 10
+from = ( 2 - 1 ) * size = 10
+
+Page 3
+size = 10
+from = ( 3 - 1 ) * size = 20
+
+Page N
+size = 10
+from = ( N - 1 ) * size 
+
+#--------------------------------------------------------
+34. Scenario Based Question - Search Template, Highlighting and Query Parameters
+#--------------------------------------------------------
+
+GET movie_data/_search
+
+GET movie_data/_search
+{
+  "query": {
+    "match": {
+      "original_title": "king"
+    }
+  },
+  "highlight": {
+    "pre_tags": [
+      "<strong>"
+    ],
+    "post_tags": [
+      "</strong>"
+    ],
+    "fields": {
+      "original_title": {}
+    }
+  },
+  "sort": [
+    {
+      "revenue": {
+        "order": "desc"
+      }
+    }
+  ]
+}
+Solution
+PUT _scripts/my-search-template
+{
+  "script": {
+    "lang": "mustache",
+    "source": {
+      "query": {
+        "match": {
+          "original_title": "{{query_string}}"
+        }
+      },
+      "highlight": {
+        "pre_tags": [
+          "<strong>"
+        ],
+        "post_tags": [
+          "</strong>"
+        ],
+        "fields": {
+          "original_title": {}
+        }
+      },
+      "sort": [
+        {
+          "revenue": {
+            "order": "desc"
+          }
+        }
+      ]
+    },
+    "params": {
+      "query_string": "My query string"
+    }
+  }
+}
+Solution
+GET movie_data/_search/template
+{
+  "id": "my-search-template",
+  "params": {
+    "query_string": "king"
+  }
+}
+Solution
+https://www.elastic.co/guide/en/elasticsearch/reference/current/search-template.html
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/highlighting.html
+
+#-------------------------------------------------------
+35. Define a mapping that satisfies a given set of requirements
+#-------------------------------------------------------
+POST _reindex
+{
+  "source": {
+    "index": "products"
+  },
+  "dest": {
+    "index": "products-v2"
+  }
+}
+GET products/_count
+GET products-v2/_count
+ 
+GET products-v2/_search
+{
+  "query": {
+    "term": {
+      "name": {
+        "value": "Coffee Maker"
+      }
+    }
+  }
+}
+
+#-------------------------------------------------------
+36. Define and use a custom analyzer that satisfies a given set of requirements
+#-------------------------------------------------------
+DELETE analyzer-test
+ 
+PUT analyzer-test
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my-custom-analyzer": {
+          "type": "custom",
+          "char_filter": [
+            "html_strip",
+            "emoji_to_word"
+          ],
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "trim"
+          ]
+        }
+      },
+      "char_filter": {
+          "emoji_to_word": {
+            "type": "mapping",
+            "mappings": [
+              "😀 => happy",
+              "🐕 => dog"
+            ]
+          }
+        }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "comment": {
+        "type": "text",
+        "analyzer": "my-custom-analyzer"
+      },
+      "username": {
+        "type": "keyword"
+      }
+    }
+  }
+}
+POST analyzer-test/_analyze
+{
+  "text": "<b>THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 🐕 !!! 😀</b>",
+  "analyzer": "my-custom-analyzer"
+}
+ 
+POST analyzer-test/_analyze
+{
+  "text": "<b>THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 🐕 !!! 😀</b>",
+  "analyzer": "standard"
+}
+ 
+ 
+PUT analyzer-test/_doc/1
+{
+  "username": "johnsmith",
+  "comment": "<b>THE QUICK BROWN FOX JUMPS OVER THE LAZY DOG 🐕 !!! 😀</b>"
+}
+ 
+GET analyzer-test/_search
+{
+  "query": {
+    "match": {
+      "comment": "🐕"
+    }
+  }
+}
+
+#-------------------------------------------------------
+37. Define and use multi-fields with different data types and/or analyzers
+#-------------------------------------------------------
+DELETE multi-field-demo-2
+PUT multi-field-demo-2
+{
+  "mappings": {
+    "properties": {
+      "text": { 
+        "type": "text",
+        "fields": {
+          "english": { 
+            "type":     "text",
+            "analyzer": "english"
+          }
+        }
+      }
+    }
+  }
+}
+ 
+PUT multi-field-demo-2/_doc/1
+{ "text": "quick brown fox" } 
+ 
+PUT multi-field-demo-2/_doc/2
+{ "text": "quick brown foxes" }
+GET multi-field-demo-2/_search
+{
+  "query": {
+    "multi_match": {
+      "query": "quick brown foxes",
+      "fields": [ 
+        "text",
+        "text.english"
+      ],
+      "type": "most_fields" 
+    }
+  }
+}
+
+#-------------------------------------------------------
+38. Use the Reindex API and Update By Query API to reindex and or update documents
+#-------------------------------------------------------
+# If no query is specified, performs an update on every document 
+# in the data stream or index without modifying the source, 
+# which is useful for picking up mapping changes
+ 
+POST ecom2/_update_by_query?conflicts=proceed
+POST ecom2/_update_by_query
+{
+  "conflicts": "proceed",
+  "script": {
+    "source": """
+        ctx._source.currency = "USD";
+        ctx._source.taxful_total_price = ctx._source.taxful_total_price * 1.1
+      """,
+    "lang": "painless"
+  },
+  "query": {
+    "match_all": {}
+  }
+}
+ 
+GET ecom2/_search?size=1&from=201
+
+#-------------------------------------------------------
+39. Define and use an ingest pipeline that satisfies a given set of requirements
+#-------------------------------------------------------
+# CREATE THE INGEST PIPELINE
+PUT _ingest/pipeline/update-customers
+{
+  "description": "Update Customers",
+  "processors": [
+    {
+      "script": {
+        "source": "ctx.taxful_total_price = ctx.taxful_total_price * 1.1"
+      }
+    },
+    {
+      "remove": {
+        "field": "taxless_total_price"
+      }
+    },
+    {
+      "set": {
+        "field": "currency",
+        "value": "USD"
+      }
+    },
+    {
+      "script": {
+        "source": """
+          if (ctx.taxful_total_price >= 100.0) {
+            ctx.customer_type = "vip";
+          }
+            else {
+              ctx.customer_type = "regular";
+            }
+          """
+      }
+    }
+  ],
+  "version": 1
+}
+ 
+GET _ingest/pipeline/update-customers
+# RUN THE INGEST PIPELINE THROUGH THE REINDEX API
+POST _reindex
+{
+  "source": {
+    "index": "kibana_sample_data_ecommerce"
+  },
+  "dest": {
+    "index": "onlineshop-enriched",
+    "pipeline": "update-customers"
+  }
+}
+ 
+# CONFIRM
+GET onlineshop-enriched/_search
+
+#-------------------------------------------------------
+40. Define runtime fields to retrieve custom values using Painless scripting
+#-------------------------------------------------------
+
+# MAKE IT PERMANENT FOR EVERYONE
+PUT my-index/_mapping
+{
+  "runtime": {
+    "day_of_week": {
+      "type": "keyword",
+      "script": {
+        "source": """emit(doc['@timestamp'].value.dayOfWeekEnum
+          .getDisplayName(TextStyle.FULL, Locale.ROOT))"""
+      }
+    }
+  }
+}
+GET my-index/_search
+{
+  "size": 0, 
+  "aggs": {
+    "day_of_week": {
+      "terms": {
+        "field": "day_of_week"
+      }
+    }
+  }
+}
+
+#-------------------------------------------------------
+41. Scenario Based Question - Update By Query
+#-------------------------------------------------------
+Given an index named "addresses"
+Write a query that will add a field called "full_address" to all the documents
+
+full_address = NUMBER + <SPACE> + STREET + <SPACE> + UNIT + <SPACE> + POSTCODE
+Task
+GET addresses/_search
+
+POST addresses/_update_by_query
+{
+  "script": {
+    "source": """
+    ctx._source.full_address = ctx._source.NUMBER + ' ' + ctx._source.STREET + ' ' + ctx._source.UNIT + ' ' + ctx._source.POSTCODE;
+    """,
+    "lang": "painless"
+  },
+  "query": {
+    "match_all": {}
+  }
+}
+
+GET addresses/_search
+
+#-------------------------------------------------------
+42. Scenario Based Question - Custom Analyzer and Reindex API
+#-------------------------------------------------------
+DELETE movie_data_reindexed
+PUT movie_data_reindexed
+{
+  "settings": {
+    "analysis": {
+      "analyzer": {
+        "my_custom_analyzer": {
+          "char_filter": [],
+          "tokenizer": "standard",
+          "filter": [
+            "lowercase",
+            "english_stop"
+          ]
+        }
+      },
+      "filter": {
+        "english_stop": {
+          "type": "stop",
+          "stopwords": "_english_"
+        }
+      }
+    }
+  },
+  "mappings": {
+    "properties": {
+      "original_title": {
+        "type": "text",
+        "analyzer": "my_custom_analyzer"
+      }
+    }
+  }
+}
+Solution
+https://www.elastic.co/guide/en/elasticsearch/reference/current/analysis-custom-analyzer.html
+
+https://www.elastic.co/guide/en/elasticsearch/reference/current/specify-analyzer.html
+
+POST _reindex
+{
+  "source": {
+    "index": "movie_data"
+  },
+  "dest": {
+    "index": "movie_data_reindexed"
+  }
+}
+
+GET movie_data_reindexed/_search
+{
+  "query": {
+    "match": {
+      "original_title": "the"
+    }
+  }
+}
+Solution
+
+#-------------------------------------------------------
+43. Backup and restore a cluster and or specific indices
+#-------------------------------------------------------
+GET _cat/indices
+ 
+DELETE _snapshot/mysnapshotrepository
+ 
+PUT _snapshot/mysnapshotrepository
+{
+  "type": "fs",
+  "settings": {
+    "location": "/tmp/elasticsearchbackups"
+  }
+}
+DELETE _snapshot/mysnapshotrepository/myfirstbackup
+ 
+PUT _snapshot/mysnapshotrepository/myfirstbackup
+{
+  "indices": "*",
+  "include_global_state": true
+}
+ 
+GET _snapshot/mysnapshotrepository/myfirstbackup
+ 
+# SHOW THE SNAPSHOT IN TERMINAL
+# The following request creates a policy that backs up the cluster state, 
+# all data streams, and all indices daily at 1:30 a.m. UTC.
+ 
+# This configuration keeps snapshots for 30 days, 
+# retaining at least 5 and no more than 50 snapshots regardless of age.
+ 
+# <second> <minute> <hour> <day_of_month> <month> <day_of_week> [year]
+ 
+DELETE _slm/policy/nightly-snapshots
+PUT _slm/policy/nightly-snapshots
+{
+  "schedule": "0 30 1 * * ?",       
+  "name": "<nightly-snap-{now/d}>", 
+  "repository": "mysnapshotrepository",    
+  "config": {
+    "indices": "*",                 
+    "include_global_state": true    
+  },
+  "retention": {                    
+    "expire_after": "30d",
+    "min_count": 5,
+    "max_count": 50
+  }
+}
+ 
+ 
+POST _slm/policy/nightly-snapshots/_execute
+GET _snapshot/mysnapshotrepository/nightly-snap-2022.07.22-5sejsotur5azvxn4gcy-ya
+ 
+# SHOW THE SNAPSHOT IN TERMINAL
+
+#-------------------------------------------------------
+44. Scenario Based Question - Register Repository and Take Backup
+#-------------------------------------------------------
+Register a snapshot repository
+named `filesystemrepo`
+at path
+"/tmp/elasticsearchbackups"
+
+After Registration
+Take a backup named `shakespeare_backup`
+with pattern `shakespeare*`
+including global state
+Task
+PUT _snapshot/filesystemrepo
+{
+  "type": "fs",
+  "settings": {
+    "location": "/tmp/elasticsearchbackups"
+  }
+}
+
+GET _snapshot/filesystemrepo
+Solution
+PUT _snapshot/filesystemrepo/shakespeare_backup
+{
+  "indices": "shakespeare*",
+  "include_global_state": true
+}
+
+GET _snapshot/filesystemrepo/shakespeare_backup
+Solution
+
+
+#-------------------------------------------------------
+45. Configure a cluster for cross-cluster search
+#-------------------------------------------------------
+curl -XPUT "http://localhost:9500/shakespeare/_settings" \
+-H 'Content-Type: application/json' -d'
+{
+  "settings": {
+    "index.blocks.write": true
+  }
+}'
+curl -XDELETE "http://localhost:9500/shakespeare2"
+curl -XPOST "http://localhost:9500/shakespeare/_clone/shakespeare2"
+Step 5 - Rename 2nd Index on Cluster 2
+GET shakespeare1,cluster_one:shakespeare2/_search
+{
+  "query": {
+    "match": {
+      "text_entry": "King"
+    }
+  }
+}
+Step 6 - Perform Cross Cluster Search
+
+#-------------------------------------------------------
+46. Configure a snapshot to be searchable
+#-------------------------------------------------------
+# GET ALL SNAPSHOTS
+GET _snapshot
+ 
+# GET SPECIFIC SNAPSHOT INFORMATION
+GET _snapshot/mysnapshotrepository/*
+ 
+# RESTORE AN INDEX
+POST _snapshot/mysnapshotrepository/myfirstbackup/_restore
+{
+  "indices": "ecommerce"
+}
+ 
+# CONFIRM THAT THE INDEX GOT RESTORED
+GET ecommerce
+# 2ND PART
+# SEARCHABLE SNAPSHOT DEMO
+# DELETE INDEX FIRST
+DELETE ecommerce
+ 
+# ACTIVATE TRIAL LICENSE FOR 30 DAYS
+POST _license/start_trial?acknowledge=true
+ 
+# MOUNT A SEARCHABLE INDEX
+POST _snapshot/mysnapshotrepository/myfirstbackup/_mount
+{
+  "index": "ecommerce",
+  "renamed_index": "ecommerce_from_snapshot"
+}
+ 
+# CONFIRM THE INDEX
+GET _cat/indices
+ 
+# DELETE THE SEARCHABLE SNAPSHOT INDEX
+DELETE ecommerce_from_snapshot
+ 
+# CONFIRM THE DELETED INDEX
+GET _cat/indices
+
+#-------------------------------------------------------
+48. Implement cross-cluster replication
+#-------------------------------------------------------
+# MANUAL FOLLOW
+PUT shakespeare/_ccr/follow
+{
+  "remote_cluster": "secondary_cluster",
+  "leader_index": "shakespeare"
+}
+GET shakespeare
+GET shakespeare/_search
+ 
+GET /shakespeare/_ccr/stats
+# AUTOMATIC FOLLOW BASED ON INDEX PATTERNS
+PUT _ccr/auto_follow/shakespeare
+{
+  "remote_cluster": "secondary_cluster",
+  "leader_index_patterns": [
+    "shakespeare-*"
+    ]
+}
+
